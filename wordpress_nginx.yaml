@@ -1,0 +1,119 @@
+---
+
+  - name: "Host a wordpress site on Ubuntu"
+    hosts: ubuntu
+    become: true
+    vars_files:
+      - wp.vars
+    tasks:
+
+      - name: "Upgrade all apt packages"
+        apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+      - name: "Install required packages"
+        yum:
+          name:
+            - mariadb-server
+            - python3-pip
+            - nginx
+            - php
+            - php-fpm
+            - php-mysql
+          state: present
+
+      - name: "Install mysql-python package"
+        pip:
+          name: PyMySQL
+          state: present
+
+      - name: Write root login credentials
+        copy:
+          dest: /root/.my.cnf
+          owner: root
+          group: root
+          mode: 0600
+          content: |
+            [client]
+            user=root
+            password={{ mysql_root_password }}
+
+      - name: Set root user password
+        mysql_user:
+          host_all: yes
+          name: root
+          password: "{{ mysql_root_password }}"
+          check_implicit_admin: yes
+          state: present
+          login_unix_socket: /var/run/mysqld/mysqld.sock
+
+      - name: Create database
+        mysql_db:
+          name: "{{ mysql_extra_database }}"
+          state: present
+          login_unix_socket: /var/run/mysqld/mysqld.sock  
+
+      - name: "Create extra user"
+        mysql_user:
+          login_user: "root"
+          login_password: "{{ mysql_root_password }}"
+          login_unix_socket: /var/run/mysqld/mysqld.sock
+          name: "{{ mysql_db_user }}"
+          password: "{{ mysql_db_password }}"
+          priv: "{{ mysql_extra_database }}.*:ALL"
+          state: present 
+
+      - name: "Create website configuration file"
+        template:
+          src: vhost_temp.tmpl
+          dest: "/etc/nginx/sites-available/{{ nginx_website }}"
+
+      - name: "create soft link for the website"
+        file:
+          src: "/etc/nginx/sites-available/{{ nginx_website }}"
+          dest: "/etc/nginx/sites-enabled/{{ nginx_website }}"
+          state: link
+
+      - name: "Create website folder"
+        file:
+          path: "/var/www/html/{{ nginx_website }}"
+          state: directory
+
+      - name: Download fwordpress files
+        get_url:
+          url: "{{ wp_url }}"
+          dest: /tmp/wordpress.tar.gz
+
+      - name: Utar wodpress tar file   
+        unarchive:
+          src: /tmp/wordpress.tar.gz
+          dest: /tmp/
+          remote_src: yes
+
+      - name: copy website files to document root   
+        copy:
+          src: /tmp/wordpress/
+          dest: "/var/www/html/{{ nginx_website }}"
+          remote_src: yes
+
+      - name: "Update wp-config file"
+        template:
+          src: wp-config.php.tmpl
+          dest: "/var/www/html/{{ nginx_website }}/wp-config.php"
+
+      - name: "Unlink the default configuration file"
+        file:
+          path: /etc/nginx/sites-enabled/default 
+          state: absent
+
+      - name: "Restart nginx service" 
+        service:
+          name: nginx
+          state: restarted
+
+      - name: "Clean wordpress tar files"
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items:
+          - /tmp/wordpress.tar.gz
+          - /tmp/wordpress 

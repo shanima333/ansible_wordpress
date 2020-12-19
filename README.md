@@ -8,7 +8,7 @@
 
 ##  Files
 
-  -  nginx_mariadb.yaml
+  -  wordpress_nginx.yaml
   - wp-config.php.tmpl
   - vhost_temp.tmpl
   - wp.vars
@@ -28,7 +28,9 @@ All variables declared on this file
   - Create website configuration file
   - create soft link for the website
   - Create website folder
-  - Upload website contents
+  - Download wordpress tar file to tmp folder
+  - Untar the file
+  - copy wordpress files from tmp folder to document root
   - Update wp-config file
   - Unlink the default configuration file
   - Restart nginx service
@@ -41,3 +43,4 @@ Website template configuration file
 
 ## wp-config.php.tmpl
 wp-config.php file template with updated database connection string
+
